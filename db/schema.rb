@@ -10,9 +10,31 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.1].define(version: 2025_11_27_173147) do
+ActiveRecord::Schema[7.1].define(version: 2025_11_30_204005) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
+
+  create_table "devices", force: :cascade do |t|
+    t.string "name"
+    t.string "mode"
+    t.integer "interval_hours"
+    t.integer "duration_minutes"
+    t.float "humidity_threshold"
+    t.datetime "next_watering"
+    t.float "water_level"
+    t.bigint "user_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["user_id"], name: "index_devices_on_user_id"
+  end
+
+  create_table "plants", force: :cascade do |t|
+    t.float "humidity_soil"
+    t.float "humidity_env"
+    t.float "temperature_env"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
 
   create_table "users", force: :cascade do |t|
     t.string "email", default: "", null: false
@@ -28,4 +50,16 @@ ActiveRecord::Schema[7.1].define(version: 2025_11_27_173147) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
+  create_table "watering_schedules", force: :cascade do |t|
+    t.bigint "device_id"
+    t.string "day_of_week"
+    t.string "start_time"
+    t.string "end_time"
+    t.boolean "active", default: true
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["device_id"], name: "index_watering_schedules_on_device_id"
+  end
+
+  add_foreign_key "devices", "users"
 end
