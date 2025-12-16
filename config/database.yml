@@ -81,6 +81,7 @@ test:
 #
 production:
   <<: *default
-  database: gorshok_api_production
-  username: gorshok_api
-  password: <%= ENV["GORSHOK_API_DATABASE_PASSWORD"] %>
+  #database: gorshok_api_production
+  #username: gorshok_api
+  #password: <%= ENV["GORSHOK_API_DATABASE_PASSWORD"] %>
+  url: <%= ENV['DATABASE_URL'] %>
