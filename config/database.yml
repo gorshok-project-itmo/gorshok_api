@@ -12,11 +12,12 @@
 # Configure Using Gemfile
 # gem "pg"
 #
-default: &default
+default: &default 
   adapter: postgresql
   encoding: unicode
   username: artem
-  port: 5434
+  #port: 5434
+  port: <%= ENV.fetch("DB_PORT") { 5434 } %>
   # For details on connection pooling, see Rails configuration guide
   # https://guides.rubyonrails.org/configuring.html#database-pooling
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
@@ -80,8 +81,8 @@ test:
 # for a full overview on how database connection configuration can be specified.
 #
 production:
-  <<: *default
+  <<: *default 
   #database: gorshok_api_production
   #username: gorshok_api
   #password: <%= ENV["GORSHOK_API_DATABASE_PASSWORD"] %>
-  url: <%= ENV['DATABASE_URL'] %>
+  
