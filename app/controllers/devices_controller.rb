@@ -5,17 +5,18 @@ class DevicesController < ApplicationController
   # GET /devices
   def index
     @devices = current_user.devices.order(created_at: :desc)
-    render json: @devices
+    render json: @devices, include: { plants: { only: [:id, :plant_number, :name, :mode, :humidity_soil, :humidity_env, :temperature_env] } }
   end
 
   # GET /devices/1
   def show
-    render json: @device
+    render json: @device, include: { plants: { include: :watering_schedules } }
   end
 
   # POST /devices
   def create
     @device = current_user.devices.new(device_params)
+    @device.device_identifier = SecureRandom.hex(6) # временный ID, заменится при регистрации ESP32
 
     if @device.save
       render json: @device, status: :created
@@ -41,13 +42,26 @@ class DevicesController < ApplicationController
 
   # GET /devices/1/watering_status
   def watering_status
+    plants_status = @device.plants.map do |plant|
+      {
+        plant_number: plant.plant_number,
+        name: plant.name,
+        mode: plant.mode,
+        humidity_soil: plant.humidity_soil,
+        humidity_env: plant.humidity_env,
+        temperature_env: plant.temperature_env,
+        needs_watering: plant.needs_watering?,
+        min_earth_humidity: plant.min_earth_humidity,
+        max_watering_time: plant.max_watering_time
+      }
+    end
+
     status = {
       device_name: @device.name,
-      mode: @device.mode,
-      next_watering: @device.next_watering,
-      water_level: @device.water_level,
-      humidity_threshold: @device.humidity_threshold,
-      needs_watering: needs_watering?(@device)
+      device_identifier: @device.device_identifier,
+      status: @device.status,
+      last_seen_at: @device.last_seen_at,
+      plants: plants_status
     }
 
     render json: status
@@ -55,21 +69,32 @@ class DevicesController < ApplicationController
 
   # POST /devices/1/trigger_watering
   def trigger_watering
-    watering_response = {
-      message: "Watering triggered for #{@device.name}",
-      duration: @device.duration_minutes,
-      started_at: Time.current,
-      estimated_finish: Time.current + @device.duration_minutes.minutes,
-      water_level_before: @device.water_level
-    }
+    plant_number = params[:plant_number] || 1
+    plant = @device.plants.find_by(plant_number: plant_number)
+    
+    unless plant
+      return render json: { error: "Plant ##{plant_number} not found on this device" }, status: :not_found
+    end
 
-    # Обновляем уровень воды (уменьшаем на 5% за полив)
-    new_water_level = [@device.water_level - 5.0, 0].max
-    @device.update(water_level: new_water_level)
-
-    watering_response[:water_level_after] = new_water_level
-
-    render json: watering_response
+    # Отправляем команду на ESP32
+    sender = Esp32::CommandSender.new(@device)
+    
+    if @device.online?
+      success = sender.water_plant(plant_number)
+      
+      if success
+        render json: {
+          message: "Watering triggered for plant ##{plant_number}",
+          plant_number: plant_number,
+          duration_minutes: plant.max_watering_time / 60,
+          started_at: Time.current
+        }
+      else
+        render json: { error: "Failed to send watering command to device" }, status: :service_unavailable
+      end
+    else
+      render json: { error: "Device is offline" }, status: :service_unavailable
+    end
   end
 
   # GET /devices/summary
@@ -78,10 +103,10 @@ class DevicesController < ApplicationController
     
     summary = {
       total_devices: user_devices.count,
-      devices_by_mode: user_devices.group(:mode).count,
-      average_water_level: user_devices.average(:water_level),
-      low_water_devices: user_devices.where("water_level < ?", 20.0).count,
-      next_watering_devices: user_devices.where("next_watering <= ?", 24.hours.from_now).count
+      online_devices: user_devices.where(status: :online).count,
+      total_plants: Plant.where(device_id: user_devices.pluck(:id)).count,
+      plants_needing_water: Plant.where(device_id: user_devices.pluck(:id))
+                                 .select { |p| p.needs_watering? }.count
     }
 
     render json: summary
@@ -96,18 +121,6 @@ class DevicesController < ApplicationController
   end
 
   def device_params
-    params.require(:device).permit(
-      :name, 
-      :mode, 
-      :interval_hours, 
-      :duration_minutes, 
-      :humidity_threshold, 
-      :next_watering, 
-      :water_level
-    )
-  end
-
-  def needs_watering?(device)
-    device.water_level > 10.0
+    params.require(:device).permit(:name, :ip_address)
   end
 end

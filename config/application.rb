@@ -1,5 +1,5 @@
 require_relative "boot"
-
+require_relative "../app/middleware/esp32_websocket_middleware"
 require "rails/all"
 
 # Require the gems listed in Gemfile, including any gems
@@ -23,5 +23,6 @@ module GorshokApi
     #
     # config.time_zone = "Central Time (US & Canada)"
     # config.eager_load_paths << Rails.root.join("extras")
+    config.middleware.use Esp32WebsocketMiddleware
   end
 end

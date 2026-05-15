@@ -1,3 +1,5 @@
+# config/puma.rb
+
 # This configuration file will be evaluated by Puma. The top-level methods that
 # are invoked here are part of Puma's configuration DSL. For more information
 # about methods provided by the DSL, see https://puma.io/puma/Puma/DSL.html.
@@ -13,9 +15,10 @@ threads min_threads_count, max_threads_count
 
 # Specifies that the worker count should equal the number of processors in production.
 if ENV["RAILS_ENV"] == "production"
-  require "concurrent-ruby"
-  worker_count = Integer(ENV.fetch("WEB_CONCURRENCY") { Concurrent.physical_processor_count })
-  workers worker_count if worker_count > 1
+  # WebSocket требует только 1 воркер!
+  # Несколько воркеров = разные процессы = WebSocket соединения не разделяются между ними
+  worker_count = 1
+  workers worker_count
 end
 
 # Specifies the `worker_timeout` threshold that Puma will use to wait before
